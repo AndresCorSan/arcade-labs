@@ -2,6 +2,7 @@
 
 import random
 import arcade
+import math
 
 # --- Constants ---
 SPRITE_SCALING_PLAYER = 0.6
@@ -13,6 +14,60 @@ ASTEROIDS_COUNT = 10
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
+
+
+class Coin(arcade.Sprite):
+
+    def __init__(self, filename, sprite_scaling):
+        """ Constructor. """
+        # Call the parent class (Sprite) constructor
+        super().__init__(filename, sprite_scaling)
+
+        # Current angle in radians
+        self.circle_angle = 0
+
+        # How far away from the center to orbit, in pixels
+        self.circle_radius = 0
+
+        # How fast to orbit, in radians per frame
+        self.circle_speed = 0.008
+
+        # Set the center of the point we will orbit around
+        self.circle_center_x = 0
+        self.circle_center_y = 0
+
+    def update(self):
+        """ Update the ball's position. """
+        # Calculate a new x, y
+        self.center_x = self.circle_radius * math.sin(self.circle_angle) \
+                        + self.circle_center_x
+        self.center_y = self.circle_radius * math.cos(self.circle_angle) \
+                        + self.circle_center_y
+
+        # Increase the angle in prep for the next round.
+        self.circle_angle += self.circle_speed
+
+
+class Asteroid(arcade.Sprite):
+    """
+    This class represents the asteroids on our screen. It is a child class of
+    the arcade library's "Sprite" class.
+    """
+
+    def reset_pos(self):
+        # Reset the coin to a random spot above the screen
+        self.center_y = random.randrange(SCREEN_HEIGHT + 20,
+                                         SCREEN_HEIGHT + 100)
+        self.center_x = random.randrange(SCREEN_WIDTH)
+
+    def update(self):
+        # Move the coin
+        self.center_y -= 1
+
+        # See if the coin has fallen off the bottom of the screen.
+        # If so, reset it.
+        if self.top < 0:
+            self.reset_pos()
 
 
 class MyGame(arcade.Window):
@@ -58,19 +113,19 @@ class MyGame(arcade.Window):
 
         # Create the coins
         for i in range(COIN_COUNT):
-            # Create the coin instance
-            # Coin image from kenney.nl
-            coin = arcade.Sprite(":resources:images/items/gold_1.png", SPRITE_SCALING_COIN)
+            coin = Coin(":resources:images/items/gold_1.png", SPRITE_SCALING_COIN)
 
-            # Position the coin
-            coin.center_x = random.randrange(SCREEN_WIDTH)
-            coin.center_y = random.randrange(SCREEN_HEIGHT)
+            coin.circle_center_x = random.randrange(SCREEN_WIDTH)
+            coin.circle_center_y = random.randrange(SCREEN_HEIGHT)
 
-            # Add the coin to the lists
+            coin.circle_radius = random.randrange(10, 200)
+
+            coin.circle_angle = random.random() * 2 * math.pi
+
             self.coin_list.append(coin)
 
-        for i in range(ASTEROIDS_COUNT):
-            asteroid = arcade.Sprite(":resources:images/space_shooter/meteorGrey_big3.png", SPRITE_SCALING_ASTEROID)
+        for j in range(ASTEROIDS_COUNT):
+            asteroid = Asteroid(":resources:images/space_shooter/meteorGrey_big3.png", SPRITE_SCALING_ASTEROID)
 
             asteroid.center_x = random.randrange(SCREEN_WIDTH)
             asteroid.center_y = random.randrange(SCREEN_HEIGHT)
@@ -82,32 +137,37 @@ class MyGame(arcade.Window):
         arcade.start_render()
         self.coin_list.draw()
         self.player_list.draw()
+        self.asteroids_list.draw()
 
         # Put the text on the screen.
         output = f"Score: {self.score}"
         arcade.draw_text(output, 10, 20, arcade.color.WHITE, 14)
+        if len(self.coin_list) == 0:
+            arcade.draw_text("GAME OVER", SCREEN_WIDTH / 4, SCREEN_HEIGHT / 2, arcade.color.RED, 60)
 
     def on_mouse_motion(self, x, y, dx, dy):
         """ Handle Mouse Motion """
 
         # Move the center of the player sprite to match the mouse x, y
-        self.player_sprite.center_x = x
-        self.player_sprite.center_y = y
+        if len(self.coin_list) > 0:
+            self.player_sprite.center_x = x
+            self.player_sprite.center_y = y
 
     def update(self, delta_time):
         """ Movement and game logic """
+        if len(self.coin_list) > 0:
+            self.coin_list.update()
+            self.asteroids_list.update()
 
-        self.coin_list.update()
+            coins_hit_list = arcade.check_for_collision_with_list(self.player_sprite, self.coin_list)
+            for coin in coins_hit_list:
+                coin.remove_from_sprite_lists()
+                self.score += 1
 
-        coins_hit_list = arcade.check_for_collision_with_list(self.player_sprite, self.coin_list)
-        for coin in coins_hit_list:
-            coin.remove_from_sprite_lists()
-            self.score += 1
-
-        asteroids_hit_list = arcade.check_for_collision_with_list(self.player_sprite, self.asteroids_list_list)
-        for asteroid in asteroids_hit_list:
-            asteroid.remove_from_sprite_lists()
-            self.score -= 1
+            asteroids_hit_list = arcade.check_for_collision_with_list(self.player_sprite, self.asteroids_list)
+            for asteroid in asteroids_hit_list:
+                asteroid.reset_pos()
+                self.score -= 1
 
 
 def main():

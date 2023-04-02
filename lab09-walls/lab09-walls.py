@@ -12,6 +12,8 @@ import arcade
 from pyglet.math import Vec2
 
 SPRITE_SCALING = 0.5
+SPRITE_SCALING_COIN = 0.5
+NUMBER_OF_COINS = 20
 
 DEFAULT_SCREEN_WIDTH = 800
 DEFAULT_SCREEN_HEIGHT = 600
@@ -40,9 +42,12 @@ class MyGame(arcade.Window):
         # Sprite lists
         self.player_list = None
         self.wall_list = None
+        self.coin_list = None
 
         # Set up the player
         self.player_sprite = None
+
+        self.score = 0
 
         # Physics engine so we don't run into walls.
         self.physics_engine = None
@@ -69,6 +74,9 @@ class MyGame(arcade.Window):
         # Sprite lists
         self.player_list = arcade.SpriteList()
         self.wall_list = arcade.SpriteList()
+        self.coin_list = arcade.SpriteList()
+
+        self.score = 0
 
         # Set up the player
         self.player_sprite = arcade.Sprite(":resources:images/animated_characters/female_person/femalePerson_idle.png",
@@ -78,21 +86,61 @@ class MyGame(arcade.Window):
         self.player_list.append(self.player_sprite)
 
         # -- Set up several columns of walls
-        for x in range(0, DEFAULT_SCREEN_WIDTH, 64):
-            wall = arcade.Sprite(":resources:images/tiles/boxCrate_double.png", SPRITE_SCALING)
+        for x in range(0, 64*28, 64*3):
+            for y in range(350+64, 64*28, 64):
+                # Randomly skip a box so the player can find a way through
+                if random.randrange(5) > 0:
+                    wall = arcade.Sprite(":resources:images/tiles/boxCrate_double.png", SPRITE_SCALING)
+                    wall.center_x = x
+                    wall.center_y = y
+                    self.wall_list.append(wall)
+
+        for x in range(0, 64*30, 64):
+            wall = arcade.Sprite(":resources:images/tiles/brickGrey.png", SPRITE_SCALING)
             wall.center_x = x
             wall.center_y = 350
             self.wall_list.append(wall)
-        # for x in range(200, 1650, 210):
-        #     for y in range(0, 1600, 64):
-        #         # Randomly skip a box so the player can find a way through
-        #         if random.randrange(5) > 0:
-        #             wall = arcade.Sprite(":resources:images/tiles/boxCrate_double.png", SPRITE_SCALING)
-        #             wall.center_x = x
-        #             wall.center_y = y
-        #             self.wall_list.append(wall)
+        for x in range(0, 64*30, 64):
+            wall = arcade.Sprite(":resources:images/tiles/brickGrey.png", SPRITE_SCALING)
+            wall.center_x = x
+            wall.center_y = 64*29 + 32
+            self.wall_list.append(wall)
+        for y in range(350, 64*30, 64):
+            wall = arcade.Sprite(":resources:images/tiles/brickGrey.png", SPRITE_SCALING)
+            wall.center_x = 0
+            wall.center_y = y
+            self.wall_list.append(wall)
+        for y in range(350, 64*30, 64):
+            wall = arcade.Sprite(":resources:images/tiles/brickGrey.png", SPRITE_SCALING)
+            wall.center_x = 64*30
+            wall.center_y = y
+            self.wall_list.append(wall)
+
 
         self.physics_engine = arcade.PhysicsEngineSimple(self.player_sprite, self.wall_list)
+
+        # -- Randomly place coins where there are no walls
+        for i in range(NUMBER_OF_COINS):
+            coin = arcade.Sprite(":resources:images/items/coinGold.png", SPRITE_SCALING_COIN)
+            coin_placed_successfully = False
+
+            while not coin_placed_successfully:
+                # Position the coin
+                coin.center_x = random.randrange(0, 64*30)
+                coin.center_y = random.randrange(64*6, 64*30)
+
+                # See if the coin is hitting a wall
+                wall_hit_list = arcade.check_for_collision_with_list(coin, self.wall_list)
+
+                # See if the coin is hitting another coin
+                coin_hit_list = arcade.check_for_collision_with_list(coin, self.coin_list)
+
+                if len(wall_hit_list) == 0 and len(coin_hit_list) == 0:
+                    # It is!
+                    coin_placed_successfully = True
+
+            # Add the coin to the lists
+            self.coin_list.append(coin)
 
         # Set the background color
         arcade.set_background_color(arcade.color.AMAZON)
@@ -112,6 +160,7 @@ class MyGame(arcade.Window):
         # Draw all the sprites.
         self.wall_list.draw()
         self.player_list.draw()
+        self.coin_list.draw()
 
 
         # Select the (unscrolled) camera for our GUI
@@ -127,7 +176,10 @@ class MyGame(arcade.Window):
                                      arcade.color.ALMOND)
         text = f"Scroll value: ({self.camera_sprites.position[0]:5.1f}, " \
                f"{self.camera_sprites.position[1]:5.1f})"
+        text2 = f"Puntuación: {self.score}"
         arcade.draw_text(text, 10, 10, arcade.color.BLACK_BEAN, 20)
+        arcade.draw_text(text2, 400, 10, arcade.color.BLACK_BEAN, 20)
+
 
     def on_key_press(self, key, modifiers):
         """Called whenever a key is pressed. """
@@ -173,6 +225,10 @@ class MyGame(arcade.Window):
         # example though.)
         self.physics_engine.update()
 
+        coins_hit_list = arcade.check_for_collision_with_list(self.player_sprite, self.coin_list)
+        for coin in coins_hit_list:
+            coin.remove_from_sprite_lists()
+            self.score += 1
 
         # Scroll the screen to the player
 
